@@ -50,6 +50,7 @@ function AgendaView(element, calendar, viewName) {
 	t.getRowCnt = function() { return 1 };
 	t.getColCnt = function() { return colCnt };
 	t.getColWidth = function() { return colWidth };
+	t.getSrcColWidth = function() { return srcColWidth };
 	t.getSnapHeight = function() { return snapHeight };
 	t.getSnapMinutes = function() { return snapMinutes };
 	t.defaultSelectionEnd = defaultSelectionEnd;
@@ -66,6 +67,7 @@ function AgendaView(element, calendar, viewName) {
 	OverlayManager.call(t);
 	SelectionManager.call(t);
 	AgendaEventRenderer.call(t);
+	t.sliceSegs = sliceSegsAgenda;
 	var opt = t.opt;
 	var trigger = t.trigger;
 	var clearEvents = t.clearEvents;
@@ -83,6 +85,7 @@ function AgendaView(element, calendar, viewName) {
 	var dayTable;
 	var dayHead;
 	var dayHeadCells;
+	var sourcesHeadCells;
 	var dayBody;
 	var dayBodyCells;
 	var dayBodyCellInners;
@@ -105,6 +108,7 @@ function AgendaView(element, calendar, viewName) {
 	var viewHeight;
 	var axisWidth;
 	var colWidth;
+	var srcColWidth;
 	var gutterWidth;
 	var slotHeight; // TODO: what if slotHeight changes? (see issue 650)
 
@@ -129,7 +133,7 @@ function AgendaView(element, calendar, viewName) {
 	var showWeekNumbers;
 	var weekNumberTitle;
 	var weekNumberFormat;
-	
+	var splitDayBySources;
 
 	
 	/* Rendering
@@ -137,7 +141,47 @@ function AgendaView(element, calendar, viewName) {
 	
 	
 	disableTextSelection(element.addClass('fc-agenda'));
-	
+
+	function sliceSegsAgenda(events, visEventEnds, start, end, source) {
+		var segs = [],
+			i, len=events.length, event,
+			eventStart, eventEnd,
+			segStart, segEnd,
+			isStart, isEnd;
+		for (i=0; i<len; i++) {
+			event = events[i];
+			eventStart = event.start;
+			eventEnd = visEventEnds[i];
+
+			var sourceKey = calendar.getSourceKey(event.source);
+			if (eventEnd > start && eventStart < end && (typeof source === 'undefined' || (splitDayBySources && sourceKey == source))) {
+				if (eventStart < start) {
+					segStart = cloneDate(start);
+					isStart = false;
+				}else{
+					segStart = eventStart;
+					isStart = true;
+				}
+				if (eventEnd > end) {
+					segEnd = cloneDate(end);
+					isEnd = false;
+				}else{
+					segEnd = eventEnd;
+					isEnd = true;
+				}
+				segs.push({
+					event: event,
+					start: segStart,
+					end: segEnd,
+					isStart: isStart,
+					isEnd: isEnd,
+					msLength: segEnd - segStart
+				});
+			}
+		}
+		return segs.sort(segCmp);
+
+	}
 	
 	function renderAgenda(c) {
 		colCnt = c;
@@ -170,6 +214,7 @@ function AgendaView(element, calendar, viewName) {
 		// week # options. (TODO: bad, logic also in other views)
 		showWeekNumbers = opt('weekNumbers');
 		weekNumberTitle = opt('weekNumberTitle');
+		splitDayBySources = opt('splitDayBySources');
 		if (opt('weekNumberCalculation') != 'iso') {
 			weekNumberFormat = "w";
 		}
@@ -191,31 +236,45 @@ function AgendaView(element, calendar, viewName) {
 		var maxd;
 		var minutes;
 		var slotNormal = opt('slotMinutes') % 15 == 0;
-		
+		var sourcesCount = calendar.getSourcesCount();
+		var colSpan = splitDayBySources ? ' colspan="'+sourcesCount+'"' : '';
+		var rowSpan = splitDayBySources ? ' rowspan="2"' : '';
+
 		s =
 			"<table style='width:100%' class='fc-agenda-days fc-border-separate' cellspacing='0'>" +
 			"<thead>" +
 			"<tr>";
 
 		if (showWeekNumbers) {
-			s += "<th class='fc-agenda-axis fc-week-number " + headerClass + "'/>";
+			s += "<th class='fc-agenda-axis fc-week-number " + headerClass + "' " + rowSpan + " />";
 		}
 		else {
-			s += "<th class='fc-agenda-axis " + headerClass + "'>&nbsp;</th>";
+			s += "<th class='fc-agenda-axis " + headerClass + "' " + rowSpan + " >&nbsp;</th>";
 		}
 
 		for (i=0; i<colCnt; i++) {
 			s +=
-				"<th class='fc- fc-col" + i + ' ' + headerClass + "'/>"; // fc- needed for setDayID
+				"<th class='fc- fc-col" + i + ' ' + headerClass + "' " + colSpan + " />"; // fc- needed for setDayID
 		}
+
+		s += "<th class='fc-agenda-gutter " + headerClass + "' " + rowSpan + " >&nbsp;</th>";
+
+		if (splitDayBySources) {
+			s += "</tr>";
+			for (i = 0; i < colCnt * sourcesCount; i++) {
+				var sourceId = i % sourcesCount;
+				s += "<th class='fc- fc-source " + headerClass + "' ><div class='outer'><div class='inner'>"+
+						calendar.getSourceLabel(sourceId)+"</div></div></th>"; // fc- needed for setDayID
+			}
+		}
+
 		s +=
-			"<th class='fc-agenda-gutter " + headerClass + "'>&nbsp;</th>" +
 			"</tr>" +
 			"</thead>" +
 			"<tbody>" +
 			"<tr>" +
 			"<th class='fc-agenda-axis " + headerClass + "'>&nbsp;</th>";
-		for (i=0; i<colCnt; i++) {
+		for (i=0; i<colCnt * (splitDayBySources ? sourcesCount : 1); i++) {
 			s +=
 				"<td class='fc- fc-col" + i + ' ' + contentClass + "'>" + // fc- needed for setDayID
 				"<div>" +
@@ -232,7 +291,8 @@ function AgendaView(element, calendar, viewName) {
 			"</table>";
 		dayTable = $(s).appendTo(element);
 		dayHead = dayTable.find('thead');
-		dayHeadCells = dayHead.find('th').slice(1, -1);
+		dayHeadCells = dayHead.find('th').not('.fc-source').slice(1, -1);
+		sourcesHeadCells = dayHead.find('th.fc-source');
 		dayBody = dayTable.find('tbody');
 		dayBodyCells = dayBody.find('td').slice(0, -1);
 		dayBodyCellInners = dayBodyCells.find('div.fc-day-content div');
@@ -332,11 +392,12 @@ function AgendaView(element, calendar, viewName) {
 	
 	
 	function updateCells() {
-		var i;
+		var i,j;
 		var headCell;
 		var bodyCell;
 		var date;
 		var today = clearTime(new Date());
+		var sourcesCount = splitDayBySources ? calendar.getSourcesCount() : 1;
 
 		if (showWeekNumbers) {
 			var weekText = formatDate(colDate(0), weekNumberFormat);
@@ -350,16 +411,18 @@ function AgendaView(element, calendar, viewName) {
 		}
 
 		for (i=0; i<colCnt; i++) {
-			date = colDate(i);
+			date = t.colDate(i);
 			headCell = dayHeadCells.eq(i);
 			headCell.html(formatDate(date, colFormat));
-			bodyCell = dayBodyCells.eq(i);
-			if (+date == +today) {
-				bodyCell.addClass(tm + '-state-highlight fc-today');
-			}else{
-				bodyCell.removeClass(tm + '-state-highlight fc-today');
+			for (j=0; j<sourcesCount; j++) {
+				bodyCell = dayBodyCells.eq(i*sourcesCount+j);
+				if (+date == +today) {
+					bodyCell.addClass(tm + '-state-highlight fc-today');
+				}else{
+					bodyCell.removeClass(tm + '-state-highlight fc-today');
+				}
+				setDayID(headCell.add(bodyCell), date);
 			}
-			setDayID(headCell.add(bodyCell), date);
 		}
 	}
 	
@@ -401,6 +464,7 @@ function AgendaView(element, calendar, viewName) {
 	function setWidth(width) {
 		viewWidth = width;
 		colContentPositions.clear();
+		var srcCnt = calendar.getSourcesCount();
 		
 		axisWidth = 0;
 		setOuterWidth(
@@ -430,7 +494,9 @@ function AgendaView(element, calendar, viewName) {
 		}
 		
 		colWidth = Math.floor((slotTableWidth - axisWidth) / colCnt);
+		srcColWidth = Math.floor(colWidth/srcCnt);
 		setOuterWidth(dayHeadCells.slice(0, -1), colWidth);
+		setOuterWidth(sourcesHeadCells, srcColWidth);
 	}
 	
 
@@ -555,8 +621,9 @@ function AgendaView(element, calendar, viewName) {
 	-----------------------------------------------------------------------------*/
 	
 	
-	coordinateGrid = new CoordinateGrid(function(rows, cols) {
+	coordinateGrid = new CoordinateGrid(function(rows, cols, sources) {
 		var e, n, p;
+		var sourcesCount = calendar.getSourcesCount();
 		dayHeadCells.each(function(i, _e) {
 			e = $(_e);
 			n = e.offset().left;
@@ -565,6 +632,17 @@ function AgendaView(element, calendar, viewName) {
 			}
 			p = [n];
 			cols[i] = p;
+		});
+		p[1] = n + e.outerWidth();
+		sourcesHeadCells.each(function(i, _e) {
+			e = $(_e);
+			n = e.offset().left;
+			if (i) {
+				p[1] = n;
+			}
+			p = [n];
+			p[2] = i%sourcesCount;
+			sources[i] = p;
 		});
 		p[1] = n + e.outerWidth();
 		if (opt('allDaySlot')) {
@@ -671,7 +749,7 @@ function AgendaView(element, calendar, viewName) {
 		return {
 			left: axisWidth,
 			right: viewWidth - gutterWidth
-		}
+		};
 	}
 	
 	
@@ -713,13 +791,18 @@ function AgendaView(element, calendar, viewName) {
 	}
 	
 	
-	function renderSlotSelection(startDate, endDate) {
+	function renderSlotSelection(startDate, endDate, srcCol) {
 		var helperOption = opt('selectHelper');
 		coordinateGrid.build();
 		if (helperOption) {
 			var col = dayDiff(startDate, t.visStart) * dis + dit;
 			if (col >= 0 && col < colCnt) { // only works when times are on same day
-				var rect = coordinateGrid.rect(0, col, 0, col, slotContent); // only for horizontal coords
+				var rect;
+				if (splitDayBySources)
+					rect = coordinateGrid.rect(0, col, 0, col, slotContent, srcCol); // only for horizontal coords
+				else
+					rect = coordinateGrid.rect(0, col, 0, col, slotContent); // only for horizontal coords
+
 				var top = timePosition(startDate, startDate);
 				var bottom = timePosition(startDate, endDate);
 				if (bottom > top) { // protect against selections that are entirely before or after visible range
@@ -777,10 +860,12 @@ function AgendaView(element, calendar, viewName) {
 	function slotSelectionMousedown(ev) {
 		if (ev.which == 1 && opt('selectable')) { // ev.which==1 means left mouse button
 			unselect(ev);
+			var undef;
 			var dates;
+			var sourceNo;
 			hoverListener.start(function(cell, origCell) {
 				clearSelection();
-				if (cell && cell.col == origCell.col && !cellIsAllDay(cell)) {
+				if (cell && cell.col == origCell.col && !cellIsAllDay(cell) && (splitDayBySources || cell.srcCol == origCell.srcCol)) {
 					var d1 = cellDate(origCell);
 					var d2 = cellDate(cell);
 					dates = [
@@ -789,18 +874,20 @@ function AgendaView(element, calendar, viewName) {
 						d2,
 						addMinutes(cloneDate(d2), snapMinutes)
 					].sort(cmp);
-					renderSlotSelection(dates[0], dates[3]);
+					renderSlotSelection(dates[0], dates[3], cell.srcCol);
+					sourceNo = splitDayBySources ? cell.srcNo : undef;
 				}else{
 					dates = null;
+					sourceNo = splitDayBySources ? null : undef;
 				}
 			}, ev);
 			$(document).one('mouseup', function(ev) {
 				hoverListener.stop();
 				if (dates) {
 					if (+dates[0] == +dates[1]) {
-						reportDayClick(dates[0], false, ev);
+						reportDayClick(dates[0], false, ev, sourceNo);
 					}
-					reportSelection(dates[0], dates[3], false, ev);
+					reportSelection(dates[0], dates[3], false, ev, sourceNo);
 				}
 			});
 		}

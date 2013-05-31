@@ -70,8 +70,9 @@ var defaults = {
 	//selectable: false,
 	unselectAuto: true,
 	
-	dropAccept: '*'
-	
+	dropAccept: '*',
+	indentationMultiplier : 1,
+	splitDayBySources: false
 };
 
 // right-to-left defaults

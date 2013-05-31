@@ -176,7 +176,7 @@ function View(element, calendar, viewName) {
 	---------------------------------------------------------------------------------*/
 	
 	
-	function eventDrop(e, event, dayDelta, minuteDelta, allDay, ev, ui) {
+	function eventDrop(e, event, dayDelta, minuteDelta, allDay, ev, ui, srcNo) {
 		var oldAllDay = event.allDay;
 		var eventId = event._id;
 		moveEvents(eventsByID[eventId], dayDelta, minuteDelta, allDay);
@@ -193,7 +193,8 @@ function View(element, calendar, viewName) {
 				reportEventChange(eventId);
 			},
 			ev,
-			ui
+			ui,
+			srcNo
 		);
 		reportEventChange(eventId);
 	}

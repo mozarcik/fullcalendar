@@ -9,6 +9,9 @@ function AgendaEventRenderer() {
 	t.clearEvents = clearEvents;
 	t.slotSegHtml = slotSegHtml;
 	t.bindDaySeg = bindDaySeg;
+	t.sliceSegs = sliceSegs;
+	t.incrementDays = true;
+	t.draggableSlotEvent = draggableSlotEvent;
 	
 	
 	// imports
@@ -35,6 +38,7 @@ function AgendaEventRenderer() {
 	var resizableDayEvent = t.resizableDayEvent; // TODO: streamline binding architecture
 	var getColCnt = t.getColCnt;
 	var getColWidth = t.getColWidth;
+	var getSrcColWidth = t.getSrcColWidth;
 	var getSnapHeight = t.getSnapHeight;
 	var getSnapMinutes = t.getSnapMinutes;
 	var getBodyContent = t.getBodyContent;
@@ -84,7 +88,7 @@ function AgendaEventRenderer() {
 	
 	
 	function compileDaySegs(events) {
-		var levels = stackSegs(sliceSegs(events, $.map(events, exclEndDay), t.visStart, t.visEnd)),
+		var levels = stackSegs(t.sliceSegs(events, $.map(events, exclEndDay), t.visStart, t.visEnd)),
 			i, levelCnt=levels.length, level,
 			j, seg,
 			segs=[];
@@ -109,18 +113,25 @@ function AgendaEventRenderer() {
 			visEventEnds = $.map(events, slotEventEnd),
 			i, col,
 			j, level,
-			k, seg,
+			k, seg, src,
 			segs=[];
+		var sourcesCount = opt('splitDayBySources') ? calendar.getSourcesCount() : 1;
 		for (i=0; i<colCnt; i++) {
-			col = stackSegs(sliceSegs(events, visEventEnds, d, addMinutes(cloneDate(d), maxMinute-minMinute)));
-			countForwardSegs(col);
-			for (j=0; j<col.length; j++) {
-				level = col[j];
-				for (k=0; k<level.length; k++) {
-					seg = level[k];
-					seg.col = i;
-					seg.level = j;
-					segs.push(seg);
+			for (src=0; src<sourcesCount; src++) {
+				if (opt('splitDayBySources')) {
+					col = stackSegs(t.sliceSegs(events, visEventEnds, d, addMinutes(cloneDate(d), maxMinute-minMinute), src));
+				} else {
+					col = stackSegs(t.sliceSegs(events, visEventEnds, d, addMinutes(cloneDate(d), maxMinute-minMinute)));
+				}
+				countForwardSegs(col);
+				for (j=0; j<col.length; j++) {
+					level = col[j];
+					for (k=0; k<level.length; k++) {
+						seg = level[k];
+						seg.col = i*sourcesCount + src;
+						seg.level = j;
+						segs.push(seg);
+					}
 				}
 			}
 			addDays(d, 1, true);
@@ -179,7 +190,7 @@ function AgendaEventRenderer() {
 			top = timePosition(seg.start, seg.start);
 			bottom = timePosition(seg.start, seg.end);
 			colI = seg.col;
-			levelI = seg.level;
+			levelI = seg.level * opt('indentationMultiplier');
 			forward = seg.forward || 0;
 			leftmost = colContentLeft(colI*dis + dit);
 			availWidth = colContentRight(colI*dis + dit) - leftmost;
@@ -364,6 +375,7 @@ function AgendaEventRenderer() {
 		var snapHeight = getSnapHeight();
 		var snapMinutes = getSnapMinutes();
 		var minMinute = getMinMinute();
+		var newSrcNo;
 		eventElement.draggable({
 			zIndex: 9,
 			opacity: opt('dragOpacity', 'month'), // use whatever the month view was using
@@ -378,6 +390,7 @@ function AgendaEventRenderer() {
 						//setOverflowHidden(true);
 						revert = false;
 						dayDelta = colDelta * dis;
+						newSrcNo = cell.srcNo;
 						if (!cell.row) {
 							// on full-days
 							renderDayOverlay(
@@ -432,7 +445,11 @@ function AgendaEventRenderer() {
 							+ minMinute
 							- (event.start.getHours() * 60 + event.start.getMinutes());
 					}
-					eventDrop(this, event, dayDelta, minuteDelta, allDay, ev, ui);
+					if (opt('splitDayBySources'))
+						eventDrop(this, event, dayDelta, minuteDelta, allDay, ev, ui, newSrcNo);
+					else
+						eventDrop(this, event, dayDelta, minuteDelta, allDay, ev, ui);
+
 				}
 				//setOverflowHidden(false);
 			}
@@ -461,13 +478,16 @@ function AgendaEventRenderer() {
 		var hoverListener = getHoverListener();
 		var colCnt = getColCnt();
 		var colWidth = getColWidth();
+		var srcColWidth = getSrcColWidth();
 		var snapHeight = getSnapHeight();
 		var snapMinutes = getSnapMinutes();
+		var newSrcNo;
+		var splitDayBySources = opt('splitDayBySources');
 		eventElement.draggable({
 			zIndex: 9,
 			scroll: false,
-			grid: [colWidth, snapHeight],
-			axis: colCnt==1 ? 'y' : false,
+			grid: [splitDayBySources ? srcColWidth : colWidth, snapHeight],
+			axis: colCnt==1 && !splitDayBySources ? 'y' : false,
 			opacity: opt('dragOpacity'),
 			revertDuration: opt('dragRevertDuration'),
 			start: function(ev, ui) {
@@ -480,6 +500,7 @@ function AgendaEventRenderer() {
 					clearOverlays();
 					if (cell) {
 						dayDelta = colDelta * dis;
+						newSrcNo = cell.srcNo;
 						if (opt('allDaySlot') && !cell.row) {
 							// over full days
 							if (!allDay) {
@@ -514,7 +535,10 @@ function AgendaEventRenderer() {
 				trigger('eventDragStop', eventElement, event, ev, ui);
 				if (cell && (dayDelta || minuteDelta || allDay)) {
 					// changed!
-					eventDrop(this, event, dayDelta, allDay ? 0 : minuteDelta, allDay, ev, ui);
+					if (opt('splitDayBySources'))
+						eventDrop(this, event, dayDelta, allDay ? 0 : minuteDelta, allDay, ev, ui, newSrcNo);
+					else
+						eventDrop(this, event, dayDelta, allDay ? 0 : minuteDelta, allDay, ev, ui);
 				}else{
 					// either no change or out-of-bounds (draggable has already reverted)
 					resetElement();

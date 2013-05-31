@@ -24,7 +24,10 @@ function EventManager(options, _sources) {
 	t.removeEvents = removeEvents;
 	t.clientEvents = clientEvents;
 	t.normalizeEvent = normalizeEvent;
-	
+	t.getSourcesCount = getSourcesCount;
+	t.getSourceLabel = getSourceLabel;
+	t.getSources = getSources;
+	t.getSourceKey = getSourceKey;
 	
 	// imports
 	var trigger = t.trigger;
@@ -337,7 +340,7 @@ function EventManager(options, _sources) {
 	function normalizeEvent(event) {
 		var source = event.source || {};
 		var ignoreTimezone = firstDefined(source.ignoreTimezone, options.ignoreTimezone);
-		event._id = event._id || (event.id === undefined ? '_fc' + eventGUID++ : event.id + '');
+		event._id = event._id || (event.id === undefined ? '_fc' + eventGUID++ : event.id + eventGUID++ +'');
 		if (event.date) {
 			if (!event.start) {
 				event.start = event.date;
@@ -394,5 +397,26 @@ function EventManager(options, _sources) {
 		return ((typeof source == 'object') ? (source.events || source.url) : '') || source;
 	}
 
+	function getSourcesCount() {
+		return sources.length - 1; // -1 is because of initialization of sources var - first item in sources array is object with empty events array
+	}
 
+	function getSourceLabel(i) {
+		i++; //because of initialization of sources var - first item in sources array is object with empty events array
+		if (sources.length < i)
+			return null;
+
+		return sources[i].label;
+	}
+
+	function getSources() {
+		return $.grep(sources, function(n, i){return (i > 0);}); //do not return 0 indexed source - it's empty source
+	}
+
+	function getSourceKey(source) {
+		for (var key in sources) {
+			if (isSourcesEqual(sources[key], source)) return key - 1;
+		}
+		return -1;
+	}
 }
