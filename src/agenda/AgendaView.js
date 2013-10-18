@@ -411,7 +411,7 @@ function AgendaView(element, calendar, viewName) {
 		}
 
 		for (i=0; i<colCnt; i++) {
-			date = t.colDate(i);
+			date = colDate(i);
 			headCell = dayHeadCells.eq(i);
 			headCell.html(formatDate(date, colFormat));
 			for (j=0; j<sourcesCount; j++) {
