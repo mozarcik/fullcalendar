@@ -72,8 +72,9 @@ var defaults = {
 	
 	dropAccept: '*',
 	
-	handleWindowResize: true
+	handleWindowResize: true,
 	
+	isBackground: false
 };
 
 // right-to-left defaults

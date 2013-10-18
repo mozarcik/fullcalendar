@@ -24,40 +24,46 @@
 				right: 'month,agendaWeek,agendaDay,basicDay'
 			},
 			editable: true,
-			events: [
+			eventSources: [
 				{
-					title: 'Intended use zone for public medical consultation',
-					start: new Date(y, m, d - 1, 8, 00),
-					end: new Date(y, m, d - 1, 18, 00),
-					allDay: false,
+					events: [
+						{
+							title: 'HAINES Albert - Public consultation',
+							start: new Date(y, m, d - 1, 10, 00),
+							end: new Date(y, m, d - 1, 11, 30),
+							allDay: false
+						},
+						{
+							title: 'DOE John - Pivate consultation',
+							start: new Date(y, m, d, 10, 00),
+							end: new Date(y, m, d, 13, 00),
+							allDay: false
+						},
+						{
+							title: 'KELLER Judy - Pivate consultation',
+							start: new Date(y, m, d, 10, 00),
+							end: new Date(y, m, d, 13, 00),
+							allDay: false
+						}
+					]
+				},
+				{	
+					events: [
+						{
+							title: 'Intended use zone for public medical consultation',
+							start: new Date(y, m, d - 1, 8, 00),
+							end: new Date(y, m, d - 1, 18, 00),
+							allDay: false,
+						},
+						{
+							title: 'Intended use zone for private medical consultation',
+							start: new Date(y, m, d, 8, 00),
+							end: new Date(y, m, d, 18, 00),
+							allDay: false,
+						}
+					],
 					isBackground: true,
 					className: 'intendedUseZone public'
-				},
-				{
-					title: 'HAINES Albert - Public consultation',
-					start: new Date(y, m, d - 1, 10, 00),
-					end: new Date(y, m, d - 1, 11, 30),
-					allDay: false
-				},
-				{
-					title: 'Intended use zone for private medical consultation',
-					start: new Date(y, m, d, 8, 00),
-					end: new Date(y, m, d, 18, 00),
-					allDay: false,
-					isBackground: true,
-					className: 'intendedUseZone private'
-				},
-				{
-					title: 'DOE John - Pivate consultation',
-					start: new Date(y, m, d, 10, 00),
-					end: new Date(y, m, d, 13, 00),
-					allDay: false
-				},
-				{
-					title: 'KELLER Judy - Pivate consultation',
-					start: new Date(y, m, d, 10, 00),
-					end: new Date(y, m, d, 13, 00),
-					allDay: false
 				}
 			]
 		});

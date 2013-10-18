@@ -369,6 +369,9 @@ function EventManager(options, _sources) {
 		if (event.allDay === undefined) {
 			event.allDay = firstDefined(source.allDayDefault, options.allDayDefault);
 		}
+		if (event.isBackground === undefined) {
+			event.isBackground = firstDefined(source.isBackground, options.isBackground);
+		}
 		if (event.className) {
 			if (typeof event.className == 'string') {
 				event.className = event.className.split(/\s+/);
